@@ -5,7 +5,7 @@
 
 ## ทดลองใช้งาน
 
-🔗 _ใส่ URL ที่นี่_
+🔗  https://turboadd.github.io/IT_Asset_Tracker/
 
 ## ภาพหน้าจอ
 
@@ -53,7 +53,7 @@
 **1. เปิดโปรแกรม**
 
 ```bash
-git clone <URL ของ repository>
+git clone https://github.com/turboadd/IT_Asset_Tracker.git
 cd it-asset-tracker
 ```
 
