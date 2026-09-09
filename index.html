@@ -103,6 +103,23 @@
     font-size: 14px;
     margin: 0;
   }
+
+  /* แถบค้นหาและตัวกรอง วางเหนือตาราง */
+  .filters {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .filters input[type="search"] {
+    flex: 1;
+  }
+
+  #result-count {
+    color: #6a7178;
+    font-size: 13px;
+    margin: 0 0 12px;
+  }
 </style>
 </head>
 <body>
@@ -156,6 +173,26 @@
 
 <section>
   <h2>รายการอุปกรณ์</h2>
+  <div class="filters">
+    <input type="search" id="search" placeholder="ค้นหาชื่ออุปกรณ์ หมายเลขเครื่อง หรือผู้ถือครอง">
+    <select id="filter-category">
+      <option value="">ทุกประเภท</option>
+      <option value="notebook">โน้ตบุ๊ก</option>
+      <option value="monitor">จอ</option>
+      <option value="printer">เครื่องพิมพ์</option>
+      <option value="switch">สวิตช์</option>
+      <option value="camera">กล้องวงจรปิด</option>
+    </select>
+    <select id="filter-status">
+      <option value="">ทุกสถานะ</option>
+      <option value="available">ว่าง</option>
+      <option value="in_use">ใช้งาน</option>
+      <option value="repair">ซ่อม</option>
+      <option value="disposed">จำหน่ายออก</option>
+      <option value="lost">สูญหาย</option>
+    </select>
+  </div>
+  <p id="result-count"></p>
   <p id="empty-message">ยังไม่มีอุปกรณ์ในระบบ</p>
   <table id="asset-table">
     <thead>
@@ -207,18 +244,50 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(assets));
   }
 
-  // วาดตารางใหม่จากข้อมูลที่เก็บไว้
+  // กรองรายการตามคำค้นหา ประเภท และสถานะ ที่ผู้ใช้เลือกอยู่ตอนนี้
+  function getFilteredAssets(assets) {
+    const keyword = document.getElementById('search').value.trim().toLowerCase();
+    const category = document.getElementById('filter-category').value;
+    const status = document.getElementById('filter-status').value;
+
+    return assets.filter(function (asset) {
+      // ค้นจากชื่ออุปกรณ์ หมายเลขเครื่อง และผู้ถือครอง โดยไม่สนตัวพิมพ์เล็กใหญ่
+      const haystack = [asset.name, asset.serial_number, asset.holder_name]
+        .join(' ')
+        .toLowerCase();
+
+      const matchKeyword = keyword === '' || haystack.includes(keyword);
+      const matchCategory = category === '' || asset.category === category;
+      const matchStatus = status === '' || asset.status === status;
+
+      return matchKeyword && matchCategory && matchStatus;
+    });
+  }
+
+  // วาดตารางใหม่จากข้อมูลที่ผ่านการกรองแล้ว
   function renderTable() {
     const assets = loadAssets();
+    const visibleAssets = getFilteredAssets(assets);
     const tableBody = document.querySelector('#asset-table tbody');
     const table = document.getElementById('asset-table');
     const emptyMessage = document.getElementById('empty-message');
+    const resultCount = document.getElementById('result-count');
 
     tableBody.textContent = '';
-    emptyMessage.hidden = assets.length > 0;
-    table.hidden = assets.length === 0;
 
-    assets.forEach(function (asset, index) {
+    // ยังไม่มีข้อมูลเลย กับ มีข้อมูลแต่กรองแล้วไม่เจอ เป็นคนละสถานการณ์กัน
+    if (assets.length === 0) {
+      emptyMessage.textContent = 'ยังไม่มีอุปกรณ์ในระบบ';
+    } else {
+      emptyMessage.textContent = 'ไม่พบอุปกรณ์ที่ตรงกับเงื่อนไข';
+    }
+
+    emptyMessage.hidden = visibleAssets.length > 0;
+    table.hidden = visibleAssets.length === 0;
+    resultCount.hidden = assets.length === 0;
+    resultCount.textContent = 'พบ ' + visibleAssets.length + ' จาก ' + assets.length + ' รายการ';
+
+    visibleAssets.forEach(function (asset, index) {
       const row = document.createElement('tr');
       const values = [
         index + 1,
@@ -263,6 +332,9 @@
   }
 
   document.getElementById('asset-form').addEventListener('submit', handleSubmit);
+  document.getElementById('search').addEventListener('input', renderTable);
+  document.getElementById('filter-category').addEventListener('change', renderTable);
+  document.getElementById('filter-status').addEventListener('change', renderTable);
   renderTable();
 </script>
 
