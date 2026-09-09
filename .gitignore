@@ -1,0 +1,12 @@
+# ไฟล์ระบบปฏิบัติการ
+.DS_Store
+Thumbs.db
+
+# ไฟล์ความลับ ห้ามขึ้น GitHub เด็ดขาด
+.env
+*.key
+secrets.txt
+
+# ไฟล์ชั่วคราวและ log
+*.log
+tmp/
