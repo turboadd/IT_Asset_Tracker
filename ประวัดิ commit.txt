@@ -1,0 +1,10 @@
+## ก่อนเพิ่ม .gitignore
+
+2d679c0 (HEAD -> master) commit ครั้งแรก
+
+--------------------------------------
+
+## หลังเพิ่ม .gitignore
+
+1458deb (HEAD -> master) เพิ่ม .gitignore
+2d679c0 commit ครั้งแรก
