@@ -120,6 +120,42 @@
     font-size: 13px;
     margin: 0 0 12px;
   }
+
+  /* ปุ่มในแถวตาราง ทำให้เล็กกว่าปุ่มบันทึกของฟอร์ม */
+  .row-actions button {
+    font-size: 13px;
+    padding: 4px 12px;
+  }
+
+  .row-actions button + button {
+    margin-left: 6px;
+  }
+
+  .delete-button {
+    background: #b3261e;
+  }
+
+  .delete-button:hover {
+    background: #96201a;
+  }
+
+  #cancel-edit {
+    background: #6a7178;
+    margin-left: 8px;
+  }
+
+  #cancel-edit:hover {
+    background: #585e64;
+  }
+
+  .table-actions {
+    margin-bottom: 12px;
+  }
+
+  #export-csv {
+    font-size: 13px;
+    padding: 4px 12px;
+  }
 </style>
 </head>
 <body>
@@ -127,7 +163,7 @@
 <h1>IT Asset Tracker — ระบบทะเบียนอุปกรณ์ไอที</h1>
 
 <section>
-  <h2>เพิ่มอุปกรณ์</h2>
+  <h2 id="form-title">เพิ่มอุปกรณ์</h2>
   <form id="asset-form">
     <div class="field">
       <label for="name">ชื่ออุปกรณ์</label>
@@ -166,7 +202,8 @@
       <input type="text" id="note">
     </div>
     <div class="form-actions">
-      <button type="submit">เพิ่มอุปกรณ์</button>
+      <button type="submit" id="submit-button">เพิ่มอุปกรณ์</button>
+      <button type="button" id="cancel-edit" hidden>ยกเลิก</button>
     </div>
   </form>
 </section>
@@ -193,6 +230,9 @@
     </select>
   </div>
   <p id="result-count"></p>
+  <div class="table-actions">
+    <button type="button" id="export-csv">ส่งออก CSV</button>
+  </div>
   <p id="empty-message">ยังไม่มีอุปกรณ์ในระบบ</p>
   <table id="asset-table">
     <thead>
@@ -204,6 +244,7 @@
         <th>ผู้ถือครอง</th>
         <th>สถานะ</th>
         <th>หมายเหตุ</th>
+        <th>จัดการ</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -229,6 +270,9 @@
     disposed: 'จำหน่ายออก',
     lost: 'สูญหาย'
   };
+
+  // id ของรายการที่กำลังแก้ไขอยู่ ค่า null คือฟอร์มอยู่ในโหมดเพิ่ม
+  let editingId = null;
 
   // อ่านรายการอุปกรณ์ทั้งหมดจาก localStorage
   function loadAssets() {
@@ -306,35 +350,182 @@
         row.appendChild(cell);
       });
 
+      // คอลัมน์จัดการ ผูกปุ่มกับ id ของแถวนี้โดยตรง ไม่พึ่งลำดับแถวที่เปลี่ยนตามตัวกรอง
+      const actionCell = document.createElement('td');
+      actionCell.className = 'row-actions';
+
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.textContent = 'แก้ไข';
+      editButton.addEventListener('click', function () {
+        startEdit(asset.id);
+      });
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'delete-button';
+      deleteButton.textContent = 'ลบ';
+      deleteButton.addEventListener('click', function () {
+        deleteAsset(asset.id);
+      });
+
+      actionCell.appendChild(editButton);
+      actionCell.appendChild(deleteButton);
+      row.appendChild(actionCell);
+
       tableBody.appendChild(row);
     });
   }
 
-  // รับค่าจากฟอร์ม เพิ่มลงรายการ บันทึก แล้ววาดตารางใหม่
+  // ดึงค่าของรายการที่เลือกขึ้นฟอร์ม แล้วสลับฟอร์มเป็นโหมดแก้ไข
+  function startEdit(id) {
+    const asset = loadAssets().find(function (item) {
+      return item.id === id;
+    });
+
+    document.getElementById('name').value = asset.name;
+    document.getElementById('category').value = asset.category;
+    document.getElementById('serial_number').value = asset.serial_number;
+    document.getElementById('holder_name').value = asset.holder_name || '';
+    document.getElementById('status').value = asset.status;
+    document.getElementById('note').value = asset.note || '';
+
+    editingId = id;
+    document.getElementById('form-title').textContent = 'แก้ไขอุปกรณ์';
+    document.getElementById('submit-button').textContent = 'บันทึกการแก้ไข';
+    document.getElementById('cancel-edit').hidden = false;
+    document.getElementById('name').focus();
+  }
+
+  // ออกจากโหมดแก้ไข ล้างฟอร์ม แล้วคืนหน้าตาเป็นโหมดเพิ่ม
+  function cancelEdit() {
+    editingId = null;
+    document.getElementById('asset-form').reset();
+    document.getElementById('form-title').textContent = 'เพิ่มอุปกรณ์';
+    document.getElementById('submit-button').textContent = 'เพิ่มอุปกรณ์';
+    document.getElementById('cancel-edit').hidden = true;
+  }
+
+  // ถามยืนยันก่อน แล้วลบรายการนั้นออกถาวร
+  function deleteAsset(id) {
+    const assets = loadAssets();
+    const asset = assets.find(function (item) {
+      return item.id === id;
+    });
+
+    if (!confirm('ลบ "' + asset.name + '" ออกจากระบบ?')) {
+      return;
+    }
+
+    // ถ้ากำลังแก้ไขรายการที่กำลังจะถูกลบ ต้องออกจากโหมดแก้ไขก่อน ไม่งั้นฟอร์มจะค้าง
+    if (editingId === id) {
+      cancelEdit();
+    }
+
+    saveAssets(assets.filter(function (item) {
+      return item.id !== id;
+    }));
+    renderTable();
+  }
+
+  // รับค่าจากฟอร์ม เพิ่มรายการใหม่หรือเขียนทับรายการเดิม แล้ววาดตารางใหม่
   function handleSubmit(event) {
     event.preventDefault();
 
     const assets = loadAssets();
-    assets.push({
-      id: crypto.randomUUID(),
-      name: document.getElementById('name').value.trim(),
-      category: document.getElementById('category').value,
-      serial_number: document.getElementById('serial_number').value.trim(),
-      holder_name: document.getElementById('holder_name').value.trim(),
-      status: document.getElementById('status').value,
-      note: document.getElementById('note').value.trim(),
-      created_at: new Date().toISOString()
-    });
+    const name = document.getElementById('name').value.trim();
+    const category = document.getElementById('category').value;
+    const serialNumber = document.getElementById('serial_number').value.trim();
+    const holderName = document.getElementById('holder_name').value.trim();
+    const status = document.getElementById('status').value;
+    const note = document.getElementById('note').value.trim();
+
+    if (editingId === null) {
+      assets.push({
+        id: crypto.randomUUID(),
+        name: name,
+        category: category,
+        serial_number: serialNumber,
+        holder_name: holderName,
+        status: status,
+        note: note,
+        created_at: new Date().toISOString()
+      });
+    } else {
+      // เขียนทับเฉพาะ 6 ช่องที่แก้ได้ คง id และ created_at เดิมไว้
+      const asset = assets.find(function (item) {
+        return item.id === editingId;
+      });
+      asset.name = name;
+      asset.category = category;
+      asset.serial_number = serialNumber;
+      asset.holder_name = holderName;
+      asset.status = status;
+      asset.note = note;
+    }
 
     saveAssets(assets);
-    document.getElementById('asset-form').reset();
+    cancelEdit();
     renderTable();
+  }
+
+  // ครอบค่าด้วยเครื่องหมายคำพูดเมื่อมีอักขระที่ทำให้โครงสร้าง CSV เพี้ยน
+  function toCsvValue(value) {
+    const text = value || '';
+    if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+      return '"' + text.replace(/"/g, '""') + '"';
+    }
+    return text;
+  }
+
+  // ส่งออกเฉพาะรายการที่แสดงอยู่ในตารางตอนนี้เป็นไฟล์ CSV
+  function exportCsv() {
+    const visibleAssets = getFilteredAssets(loadAssets());
+
+    if (visibleAssets.length === 0) {
+      alert('ไม่มีข้อมูลให้ส่งออก');
+      return;
+    }
+
+    const lines = ['ชื่ออุปกรณ์,ประเภท,หมายเลขเครื่อง,ผู้ถือครอง,สถานะ,หมายเหตุ'];
+
+    visibleAssets.forEach(function (asset) {
+      lines.push([
+        toCsvValue(asset.name),
+        toCsvValue(CATEGORY_LABELS[asset.category]),
+        toCsvValue(asset.serial_number),
+        toCsvValue(asset.holder_name),
+        toCsvValue(STATUS_LABELS[asset.status]),
+        toCsvValue(asset.note)
+      ].join(','));
+    });
+
+    // BOM ข้างหน้าไฟล์ ถ้าไม่ใส่ Excel บน Windows จะอ่านภาษาไทยเป็นตัวขยะ
+    const csv = '\uFEFF' + lines.join('\r\n');
+
+    // ใช้เวลาท้องถิ่น ไม่ใช้ toISOString() ที่ให้เวลา UTC แล้วได้วันที่คลาดไปหนึ่งวัน
+    const now = new Date();
+    const fileDate = now.getFullYear() +
+      '-' + String(now.getMonth() + 1).padStart(2, '0') +
+      '-' + String(now.getDate()).padStart(2, '0');
+
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'it-assets-' + fileDate + '.csv';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   document.getElementById('asset-form').addEventListener('submit', handleSubmit);
   document.getElementById('search').addEventListener('input', renderTable);
   document.getElementById('filter-category').addEventListener('change', renderTable);
   document.getElementById('filter-status').addEventListener('change', renderTable);
+  document.getElementById('cancel-edit').addEventListener('click', cancelEdit);
+  document.getElementById('export-csv').addEventListener('click', exportCsv);
   renderTable();
 </script>
 
