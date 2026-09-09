@@ -144,6 +144,10 @@
         <option value="lost">สูญหาย</option>
       </select>
     </div>
+    <div class="field">
+      <label for="note">หมายเหตุ</label>
+      <input type="text" id="note">
+    </div>
     <div class="form-actions">
       <button type="submit">เพิ่มอุปกรณ์</button>
     </div>
@@ -162,6 +166,7 @@
         <th>หมายเลขเครื่อง</th>
         <th>ผู้ถือครอง</th>
         <th>สถานะ</th>
+        <th>หมายเหตุ</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -221,7 +226,8 @@
         CATEGORY_LABELS[asset.category],
         asset.serial_number,
         asset.holder_name || '—',
-        STATUS_LABELS[asset.status]
+        STATUS_LABELS[asset.status],
+        asset.note || '—'
       ];
 
       values.forEach(function (value) {
@@ -247,6 +253,7 @@
       serial_number: document.getElementById('serial_number').value.trim(),
       holder_name: document.getElementById('holder_name').value.trim(),
       status: document.getElementById('status').value,
+      note: document.getElementById('note').value.trim(),
       created_at: new Date().toISOString()
     });
 
