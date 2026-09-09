@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IT Asset Tracker — ระบบทะเบียนอุปกรณ์ไอที</title>
+<style>
+  body {
+    font-family: "Segoe UI", "Tahoma", sans-serif;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px;
+    background: #f5f6f8;
+    color: #1f2328;
+  }
+
+  h1 {
+    font-size: 22px;
+    margin: 0 0 24px;
+  }
+
+  h2 {
+    font-size: 16px;
+    margin: 0 0 16px;
+  }
+
+  section {
+    background: #fff;
+    border: 1px solid #d8dbe0;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  /* ฟอร์มจัดเป็นสองคอลัมน์ ป้ายชื่อซ้าย ช่องกรอกขวา */
+  .field {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  label {
+    font-size: 14px;
+  }
+
+  input,
+  select {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 7px 9px;
+    border: 1px solid #c4c8ce;
+    border-radius: 4px;
+    background: #fff;
+  }
+
+  input:focus,
+  select:focus {
+    outline: 2px solid #4a7dbd;
+    outline-offset: -1px;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 4px;
+    background: #2f6fb0;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: #275e97;
+  }
+
+  .form-actions {
+    margin-left: 152px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  th,
+  td {
+    text-align: left;
+    padding: 9px 10px;
+    border-bottom: 1px solid #e4e6ea;
+  }
+
+  th {
+    background: #f0f2f5;
+    font-weight: 600;
+  }
+
+  #empty-message {
+    color: #6a7178;
+    font-size: 14px;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>IT Asset Tracker — ระบบทะเบียนอุปกรณ์ไอที</h1>
+
+<section>
+  <h2>เพิ่มอุปกรณ์</h2>
+  <form id="asset-form">
+    <div class="field">
+      <label for="name">ชื่ออุปกรณ์</label>
+      <input type="text" id="name" required>
+    </div>
+    <div class="field">
+      <label for="category">ประเภท</label>
+      <select id="category" required>
+        <option value="notebook">โน้ตบุ๊ก</option>
+        <option value="monitor">จอ</option>
+        <option value="printer">เครื่องพิมพ์</option>
+        <option value="switch">สวิตช์</option>
+        <option value="camera">กล้องวงจรปิด</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="serial_number">หมายเลขเครื่อง</label>
+      <input type="text" id="serial_number" required>
+    </div>
+    <div class="field">
+      <label for="holder_name">ผู้ถือครอง</label>
+      <input type="text" id="holder_name">
+    </div>
+    <div class="field">
+      <label for="status">สถานะ</label>
+      <select id="status" required>
+        <option value="available">ว่าง</option>
+        <option value="in_use">ใช้งาน</option>
+        <option value="repair">ซ่อม</option>
+        <option value="disposed">จำหน่ายออก</option>
+        <option value="lost">สูญหาย</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button type="submit">เพิ่มอุปกรณ์</button>
+    </div>
+  </form>
+</section>
+
+<section>
+  <h2>รายการอุปกรณ์</h2>
+  <p id="empty-message">ยังไม่มีอุปกรณ์ในระบบ</p>
+  <table id="asset-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>ชื่ออุปกรณ์</th>
+        <th>ประเภท</th>
+        <th>หมายเลขเครื่อง</th>
+        <th>ผู้ถือครอง</th>
+        <th>สถานะ</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+<script>
+  const STORAGE_KEY = 'it_asset_tracker_assets';
+
+  // แปลงค่า enum ที่เก็บในข้อมูลเป็นข้อความไทยตอนแสดงผล
+  const CATEGORY_LABELS = {
+    notebook: 'โน้ตบุ๊ก',
+    monitor: 'จอ',
+    printer: 'เครื่องพิมพ์',
+    switch: 'สวิตช์',
+    camera: 'กล้องวงจรปิด'
+  };
+
+  const STATUS_LABELS = {
+    in_use: 'ใช้งาน',
+    available: 'ว่าง',
+    repair: 'ซ่อม',
+    disposed: 'จำหน่ายออก',
+    lost: 'สูญหาย'
+  };
+
+  // อ่านรายการอุปกรณ์ทั้งหมดจาก localStorage
+  function loadAssets() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    return JSON.parse(raw);
+  }
+
+  // เขียนรายการอุปกรณ์ทั้งหมดทับลง localStorage
+  function saveAssets(assets) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(assets));
+  }
+
+  // วาดตารางใหม่จากข้อมูลที่เก็บไว้
+  function renderTable() {
+    const assets = loadAssets();
+    const tableBody = document.querySelector('#asset-table tbody');
+    const table = document.getElementById('asset-table');
+    const emptyMessage = document.getElementById('empty-message');
+
+    tableBody.textContent = '';
+    emptyMessage.hidden = assets.length > 0;
+    table.hidden = assets.length === 0;
+
+    assets.forEach(function (asset, index) {
+      const row = document.createElement('tr');
+      const values = [
+        index + 1,
+        asset.name,
+        CATEGORY_LABELS[asset.category],
+        asset.serial_number,
+        asset.holder_name || '—',
+        STATUS_LABELS[asset.status]
+      ];
+
+      values.forEach(function (value) {
+        const cell = document.createElement('td');
+        // ใช้ textContent เพื่อไม่ให้ข้อความที่ผู้ใช้กรอกถูกตีความเป็น HTML
+        cell.textContent = value;
+        row.appendChild(cell);
+      });
+
+      tableBody.appendChild(row);
+    });
+  }
+
+  // รับค่าจากฟอร์ม เพิ่มลงรายการ บันทึก แล้ววาดตารางใหม่
+  function handleSubmit(event) {
+    event.preventDefault();
+
+    const assets = loadAssets();
+    assets.push({
+      id: crypto.randomUUID(),
+      name: document.getElementById('name').value.trim(),
+      category: document.getElementById('category').value,
+      serial_number: document.getElementById('serial_number').value.trim(),
+      holder_name: document.getElementById('holder_name').value.trim(),
+      status: document.getElementById('status').value,
+      created_at: new Date().toISOString()
+    });
+
+    saveAssets(assets);
+    document.getElementById('asset-form').reset();
+    renderTable();
+  }
+
+  document.getElementById('asset-form').addEventListener('submit', handleSubmit);
+  renderTable();
+</script>
+
+</body>
+</html>
