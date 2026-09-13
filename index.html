@@ -152,9 +152,14 @@
     margin-bottom: 12px;
   }
 
-  #export-csv {
+  #export-csv,
+  #import-csv {
     font-size: 13px;
     padding: 4px 12px;
+  }
+
+  #import-csv {
+    margin-left: 6px;
   }
 </style>
 </head>
@@ -232,6 +237,8 @@
   <p id="result-count"></p>
   <div class="table-actions">
     <button type="button" id="export-csv">ส่งออก CSV</button>
+    <button type="button" id="import-csv">นำเข้า CSV</button>
+    <input type="file" id="import-csv-input" accept=".csv" hidden>
   </div>
   <p id="empty-message">ยังไม่มีอุปกรณ์ในระบบ</p>
   <table id="asset-table">
@@ -520,12 +527,180 @@
     URL.revokeObjectURL(url);
   }
 
+  // แผนที่แปลงข้อความไทยกลับเป็นค่า enum ใช้ตอนอ่านไฟล์ CSV ที่ส่งออกมาก่อนหน้า
+  const CATEGORY_VALUES_BY_LABEL = Object.fromEntries(
+    Object.entries(CATEGORY_LABELS).map(function (entry) {
+      return [entry[1], entry[0]];
+    })
+  );
+
+  const STATUS_VALUES_BY_LABEL = Object.fromEntries(
+    Object.entries(STATUS_LABELS).map(function (entry) {
+      return [entry[1], entry[0]];
+    })
+  );
+
+  const IMPORT_CSV_HEADER = 'ชื่ออุปกรณ์,ประเภท,หมายเลขเครื่อง,ผู้ถือครอง,สถานะ,หมายเหตุ';
+
+  // แยกข้อความ CSV ทั้งไฟล์เป็นแถวและคอลัมน์ รองรับค่าที่ครอบด้วย "..." ซึ่งอาจมี comma หรือขึ้นบรรทัดใหม่อยู่ข้างใน
+  function parseCsvText(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let insideQuotes = false;
+    let i = 0;
+
+    while (i < text.length) {
+      const char = text[i];
+
+      if (insideQuotes) {
+        if (char === '"' && text[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        }
+        if (char === '"') {
+          insideQuotes = false;
+          i += 1;
+          continue;
+        }
+        field += char;
+        i += 1;
+        continue;
+      }
+
+      if (char === '"') {
+        insideQuotes = true;
+        i += 1;
+        continue;
+      }
+      if (char === ',') {
+        row.push(field);
+        field = '';
+        i += 1;
+        continue;
+      }
+      if (char === '\r') {
+        i += 1;
+        continue;
+      }
+      if (char === '\n') {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = '';
+        i += 1;
+        continue;
+      }
+
+      field += char;
+      i += 1;
+    }
+
+    // เก็บฟิลด์/แถวสุดท้ายที่ไม่มีตัวขึ้นบรรทัดใหม่ปิดท้าย
+    if (field !== '' || row.length > 0) {
+      row.push(field);
+      rows.push(row);
+    }
+
+    return rows;
+  }
+
+  // แปลงหนึ่งแถวข้อมูล CSV เป็น asset object พร้อม id และ created_at ใหม่
+  // คืนค่า null ถ้าข้อมูลไม่ครบหรือแปลงประเภท/สถานะไม่ได้
+  function parseAssetRow(columns) {
+    const name = (columns[0] || '').trim();
+    const categoryLabel = (columns[1] || '').trim();
+    const serialNumber = (columns[2] || '').trim();
+    const holderName = (columns[3] || '').trim();
+    const statusLabel = (columns[4] || '').trim();
+    const note = (columns[5] || '').trim();
+
+    const category = CATEGORY_VALUES_BY_LABEL[categoryLabel];
+    const status = STATUS_VALUES_BY_LABEL[statusLabel];
+
+    if (name === '' || serialNumber === '' || !category || !status) {
+      return null;
+    }
+
+    return {
+      id: crypto.randomUUID(),
+      name: name,
+      category: category,
+      serial_number: serialNumber,
+      holder_name: holderName,
+      status: status,
+      note: note,
+      created_at: new Date().toISOString()
+    };
+  }
+
+  // อ่านไฟล์ CSV ที่ผู้ใช้เลือก เพิ่มรายการที่ถูกต้องต่อท้ายข้อมูลเดิม แล้วสรุปผลให้ทราบ
+  function importCsvFile(file) {
+    const reader = new FileReader();
+
+    reader.onload = function () {
+      // ตัด BOM ที่ exportCsv() ใส่ไว้หน้าไฟล์ออกก่อน ไม่งั้นหัวคอลัมน์แรกจะเทียบไม่ตรง
+      const text = reader.result.replace(/^﻿/, '');
+      const rows = parseCsvText(text).filter(function (columns) {
+        return columns.length > 1 || columns[0] !== '';
+      });
+
+      if (rows.length === 0) {
+        alert('ไฟล์ที่เลือกไม่มีข้อมูล');
+        return;
+      }
+
+      const header = rows[0].join(',');
+      if (header !== IMPORT_CSV_HEADER) {
+        alert('รูปแบบหัวคอลัมน์ของไฟล์ไม่ตรงกับที่ระบบรองรับ');
+        return;
+      }
+
+      const assets = loadAssets();
+      let importedCount = 0;
+      let skippedCount = 0;
+
+      rows.slice(1).forEach(function (columns) {
+        const asset = parseAssetRow(columns);
+        if (asset === null) {
+          skippedCount += 1;
+          return;
+        }
+        assets.push(asset);
+        importedCount += 1;
+      });
+
+      saveAssets(assets);
+      renderTable();
+
+      alert('นำเข้าสำเร็จ ' + importedCount + ' รายการ' +
+        (skippedCount > 0 ? ', ข้าม ' + skippedCount + ' รายการ (ข้อมูลไม่ครบหรือไม่ถูกต้อง)' : ''));
+    };
+
+    reader.readAsText(file);
+  }
+
   document.getElementById('asset-form').addEventListener('submit', handleSubmit);
   document.getElementById('search').addEventListener('input', renderTable);
   document.getElementById('filter-category').addEventListener('change', renderTable);
   document.getElementById('filter-status').addEventListener('change', renderTable);
   document.getElementById('cancel-edit').addEventListener('click', cancelEdit);
   document.getElementById('export-csv').addEventListener('click', exportCsv);
+
+  document.getElementById('import-csv').addEventListener('click', function () {
+    document.getElementById('import-csv-input').click();
+  });
+
+  document.getElementById('import-csv-input').addEventListener('change', function (event) {
+    const file = event.target.files[0];
+    if (file) {
+      importCsvFile(file);
+    }
+    // ล้างค่า input ไว้ เพื่อให้เลือกไฟล์เดิมซ้ำแล้ว trigger change อีกครั้งได้
+    event.target.value = '';
+  });
+
   renderTable();
 </script>
 
