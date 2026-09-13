@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx --yes playwright@1.48 install --dry-run chromium)",
+      "Bash(ls \"C:/Users/Turbo/AppData/Local/ms-playwright\" 2>&1)",
+      "Read(//c/Users/Turbo/AppData/Local/**)",
+      "Bash(mkdir -p \"/c/Users/Turbo/AppData/Local/Temp/claude/c--Users-Turbo-OneDrive-----------IT-Asset-Tracker/08e4f90e-0b78-4268-a5db-ff86a1dca810/scratchpad\")",
+      "Bash(node test-import.js)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Turbo\\AppData\\Local\\Temp\\claude\\c--Users-Turbo-OneDrive-----------IT-Asset-Tracker\\08e4f90e-0b78-4268-a5db-ff86a1dca810\\scratchpad"
+    ]
+  }
+}
